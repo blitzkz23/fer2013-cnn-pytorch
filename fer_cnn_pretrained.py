@@ -23,15 +23,17 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Hyper-parameters
 batch_size = 64
 learning_rate = 0.01
+mean = np.array([0.5, 0.5, 0.5])
+std = np.array([0.25, 0.25, 0.25])
 
 data_transforms = {
     'train': transforms.Compose([
         transforms.ToTensor(),
-        transforms.Normalize((0.5,), (0.5,))
+        transforms.Normalize(mean, std)
     ]),
     'val': transforms.Compose([
         transforms.ToTensor(),
-        transforms.Normalize((0.5,), (0.5,))
+        transforms.Normalize(mean, std)
     ]),
 }
 
@@ -142,6 +144,12 @@ criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=0.001)
 step_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
 
-model = train_model(model, criterion, optimizer, step_lr_scheduler, num_epochs=100)
+# model = train_model(model, criterion, optimizer, step_lr_scheduler, num_epochs=50)
+
+for param in model.parameters():
+    print(param)
+
+# Save model for later inference/eval
 PATH = './fer_cnn.pth'
 torch.save(model.state_dict(), PATH)
+
