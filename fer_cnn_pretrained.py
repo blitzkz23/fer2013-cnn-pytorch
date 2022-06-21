@@ -16,7 +16,6 @@ import os
 # Mengatasi error konflik library
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
-
 # Device Config
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -144,7 +143,7 @@ criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=0.001)
 step_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
 
-# model = train_model(model, criterion, optimizer, step_lr_scheduler, num_epochs=50)
+model = train_model(model, criterion, optimizer, step_lr_scheduler, num_epochs=50)
 
 for param in model.parameters():
     print(param)
