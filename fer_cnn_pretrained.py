@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 from torch.optim import lr_scheduler
 import torchvision
@@ -12,6 +13,9 @@ import matplotlib.pyplot as plt
 import time
 import copy
 import os
+from torch.utils.tensorboard import SummaryWriter
+
+writer = SummaryWriter('runs/cnn_pretrained')
 
 # Mengatasi error konflik library
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
@@ -21,7 +25,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Hyper-parameters
 batch_size = 64
-learning_rate = 0.01
+learning_rate = 0.0005
 mean = np.array([0.5, 0.5, 0.5])
 std = np.array([0.25, 0.25, 0.25])
 
@@ -61,7 +65,11 @@ for i in range(6):
     plt.subplot(2, 3, i+1)
     plt.imshow(images[i][0], cmap='gray')
 # plt.show()
+# add sample image to tensorboard
+img_grid = torchvision.utils.make_grid(images)
+writer.add_image('fer_images', img_grid)
 
+n_total_steps = len(dataloaders['train'])
 def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     since = time.time()
 
@@ -81,7 +89,6 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
             running_loss = 0.0
             running_corrects = 0
-
             # Iterate over data.
             for inputs, labels in dataloaders[phase]:
                 inputs = inputs.to(device)
@@ -113,12 +120,18 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             print('{} Loss: {:.4f} Acc: {:.4f}'.format(
                 phase, epoch_loss, epoch_acc))
 
+            ############## TENSORBOARD ########################
+            writer.add_scalar('{} training loss'.format(phase), epoch_loss / 100, epoch * n_total_steps + i)
+            writer.add_scalar('{} accuracy'.format(phase), epoch_acc, epoch * n_total_steps + i)
+            ###################################################
+
             # deep copy the model
             if phase == 'val' and epoch_acc > best_acc:
                 best_acc = epoch_acc
                 best_model_wts = copy.deepcopy(model.state_dict())
 
         print()
+
 
     time_elapsed = time.time() - since
     print('Training complete in {:.0f}m {:.0f}s'.format(
@@ -131,24 +144,60 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
 model = models.resnet18(pretrained=True)
 num_ftrs = model.fc.in_features
-# Here the size of each output sample is set to 2.
-# Alternatively, it can be generalized to nn.Linear(num_ftrs, len(class_names)).
 model.fc = nn.Linear(num_ftrs, num_classes)
 
 model = model.to(device)
 
 criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+step_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.1)
+writer.add_graph(model, images.to(device))
 
-# Observe that all parameters are being optimized
-optimizer = optim.SGD(model.parameters(), lr=0.001)
-step_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
+model = train_model(model, criterion, optimizer, step_lr_scheduler, num_epochs=70)
 
-model = train_model(model, criterion, optimizer, step_lr_scheduler, num_epochs=50)
-
-for param in model.parameters():
-    print(param)
+# for param in model.parameters():
+#     print(param)
 
 # Save model for later inference/eval
-PATH = './fer_cnn.pth'
+PATH = 'saved_model/cnn_pretrained.pth'
 torch.save(model.state_dict(), PATH)
+
+# Test the model
+# In test phase, we don't need to compute gradients (for memory efficiency)
+class_labels = []
+class_preds = []
+with torch.no_grad():
+    n_correct = 0
+    n_samples = 0
+    for images, labels in dataloaders['val']:
+        images = images.to(device)
+        labels = labels.to(device)
+        outputs = model(images)
+        # max returns (value ,index)
+        values, predicted = torch.max(outputs.data, 1)
+        n_samples += labels.size(0)
+        n_correct += (predicted == labels).sum().item()
+
+        class_probs_batch = [F.softmax(output, dim=0) for output in outputs]
+
+        class_preds.append(class_probs_batch)
+        class_labels.append(predicted)
+
+    # 10000, 10, and 10000, 1
+    # stack concatenates tensors along a new dimension
+    # cat concatenates tensors in the given dimension
+    class_preds = torch.cat([torch.stack(batch) for batch in class_preds])
+    class_labels = torch.cat(class_labels)
+
+    acc = 100.0 * n_correct / n_samples
+    print(f'Accuracy of the network on the 10000 test images: {acc} %')
+
+    ############## TENSORBOARD ########################
+    classes = range(5)
+    for i in classes:
+        labels_i = class_labels == i
+        preds_i = class_preds[:, i]
+        writer.add_pr_curve(str(i), labels_i, preds_i, global_step=0)
+        writer.close()
+    ###################################################
 

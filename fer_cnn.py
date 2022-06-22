@@ -29,7 +29,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Hyper-parameters
 batch_size = 64
 learning_rate = 0.0005
-num_epochs = 100
+num_epochs = 60
 mean = np.array([0.5, 0.5, 0.5])
 std = np.array([0.5, 0.5, 0.5])
 
@@ -113,9 +113,6 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
 
-    running_loss = 0.0
-    running_corrects = 0
-
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
         print('-' * 10)
@@ -127,6 +124,8 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             else:
                 model.eval()   # Set model to evaluate mode
 
+            running_loss = 0.0
+            running_corrects = 0
             # Iterate over data.
             for inputs, labels in dataloaders[phase]:
                 inputs = inputs.to(device)
@@ -158,19 +157,17 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             print('{} Loss: {:.4f} Acc: {:.4f}'.format(
                 phase, epoch_loss, epoch_acc))
 
+            ############## TENSORBOARD ########################
+            writer.add_scalar('{} training loss'.format(phase), epoch_loss / 100, epoch * n_total_steps + i)
+            writer.add_scalar('{} accuracy'.format(phase), epoch_acc, epoch * n_total_steps + i)
+            ###################################################
+
             # deep copy the model
             if phase == 'val' and epoch_acc > best_acc:
                 best_acc = epoch_acc
                 best_model_wts = copy.deepcopy(model.state_dict())
 
         print()
-        ############## TENSORBOARD ########################
-        writer.add_scalar('training loss', running_loss / 100, epoch * n_total_steps + i)
-        running_accuracy = running_corrects / 100 / preds.size(0)
-        writer.add_scalar('accuracy', running_accuracy, epoch * n_total_steps + i)
-        running_corrects = 0
-        running_loss = 0.0
-        ###################################################
 
     time_elapsed = time.time() - since
     print('Training complete in {:.0f}m {:.0f}s'.format(
@@ -181,12 +178,33 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     model.load_state_dict(best_model_wts)
     return model
 
+model = models.resnet18(pretrained=True)
+num_ftrs = model.fc.in_features
+# Here the size of each output sample is set to 2.
+# Alternatively, it can be generalized to nn.Linear(num_ftrs, len(class_names)).
+model.fc = nn.Linear(num_ftrs, num_classes)
+
+model = model.to(device)
+
+criterion = nn.CrossEntropyLoss()
+
+# Observe that all parameters are being optimized
+optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+step_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=40, gamma=0.1)
+writer.add_graph(model, images.to(device))
+
 # Begin training
-model = train_model(model, criterion, optimizer, step_lr_scheduler, num_epochs=num_epochs)
+model = train_model(model, criterion, optimizer, step_lr_scheduler, num_epochs=70)
+
 
 print('Finished Training')
-PATH = './cnn.pth'
+PATH = 'saved_model/cnn.pth'
 torch.save(model.state_dict(), PATH)
+
+# Load the model
+# model = ConvNet()
+# model.load_state_dict(torch.load(PATH))
+# model.to(device)
 
 # Test the model
 # In test phase, we don't need to compute gradients (for memory efficiency)
