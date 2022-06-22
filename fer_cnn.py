@@ -78,16 +78,19 @@ writer.add_image('fer_images', img_grid)
 class ConvNet(nn.Module):
     def __init__(self):
         super(ConvNet, self).__init__()
-        # Architect Le-Net 5
-        self.conv1 = nn.Conv2d(3, 6, 5)
-        self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(6, 16, 5)
+        # Architecture Le-Net 5
+        self.conv1 = nn.Conv2d(3, 6, 5) # (input_channels, output_channels, kernel_size)
+        self.pool = nn.MaxPool2d(2, 2) # (kernel_size, stride)
+        self.conv2 = nn.Conv2d(6, 16, 5)  # input of this layer must be the same as the output of the previous layer conv layer
         self.flatten = nn.Flatten()
+        # 120 and 84 is the size of feature map
+        # 16 * 9 * 9 is the dimension of input after being flatten
         self.fc1 = nn.Linear(16 * 9 * 9, 120)
         self.fc2 = nn.Linear(120, 84)
         self.fc3 = nn.Linear(84, num_classes)
 
     def forward(self, x):
+        # Input shape ([64, 3, 48, 48])
         x = self.pool(F.relu(self.conv1(x)))
         x = self.pool(F.relu(self.conv2(x)))
         x = self.flatten(x)
@@ -97,13 +100,6 @@ class ConvNet(nn.Module):
         x = self.fc3(x)
         return x
 
-# Create model
-model = ConvNet().to(device)
-
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-step_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=45, gamma=0.1)
-writer.add_graph(model, images.to(device))
 
 # Create training loop function
 n_total_steps = len(dataloaders['train'])
@@ -138,7 +134,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                     _, preds = torch.max(outputs, 1)
                     loss = criterion(outputs, labels)
 
-                    # backward + optimize only if in training phase
+                    # backward pass + optimize only if in training phase
                     if phase == 'train':
                         optimizer.zero_grad()
                         loss.backward()
@@ -162,7 +158,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             writer.add_scalar('{} accuracy'.format(phase), epoch_acc, epoch * n_total_steps + i)
             ###################################################
 
-            # deep copy the model
+            # deep copy the model with bess acc
             if phase == 'val' and epoch_acc > best_acc:
                 best_acc = epoch_acc
                 best_model_wts = copy.deepcopy(model.state_dict())
@@ -178,28 +174,20 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     model.load_state_dict(best_model_wts)
     return model
 
-model = models.resnet18(pretrained=True)
-num_ftrs = model.fc.in_features
-# Here the size of each output sample is set to 2.
-# Alternatively, it can be generalized to nn.Linear(num_ftrs, len(class_names)).
-model.fc = nn.Linear(num_ftrs, num_classes)
-
-model = model.to(device)
+# Create model
+model = ConvNet().to(device)
 
 criterion = nn.CrossEntropyLoss()
-
-# Observe that all parameters are being optimized
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 step_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=40, gamma=0.1)
 writer.add_graph(model, images.to(device))
 
 # Begin training
-model = train_model(model, criterion, optimizer, step_lr_scheduler, num_epochs=70)
-
+# model = train_model(model, criterion, optimizer, step_lr_scheduler, num_epochs=60)
 
 print('Finished Training')
 PATH = 'saved_model/cnn.pth'
-torch.save(model.state_dict(), PATH)
+# torch.save(model.state_dict(), PATH)
 
 # Load the model
 # model = ConvNet()

@@ -7,7 +7,6 @@ from torch.optim import lr_scheduler
 import torchvision
 import torchvision.transforms as transforms
 from torchvision import datasets, models, transforms
-from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torch.utils.data import Dataset, DataLoader
 import matplotlib.pyplot as plt
 import time
@@ -26,11 +25,12 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Hyper-parameters
 batch_size = 64
 learning_rate = 0.0005
-mean = np.array([0.5, 0.5, 0.5])
-std = np.array([0.25, 0.25, 0.25])
+mean = np.array([0.0398, 0.0398, 0.0398])
+std = np.array([0.5070, 0.5070, 0.5070])
 
 data_transforms = {
     'train': transforms.Compose([
+        transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         transforms.Normalize(mean, std)
     ]),
@@ -150,17 +150,17 @@ model = model.to(device)
 
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-step_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.1)
+step_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=40, gamma=0.1)
 writer.add_graph(model, images.to(device))
 
-model = train_model(model, criterion, optimizer, step_lr_scheduler, num_epochs=70)
+model = train_model(model, criterion, optimizer, step_lr_scheduler, num_epochs=60)
 
 # for param in model.parameters():
 #     print(param)
 
 # Save model for later inference/eval
-PATH = 'saved_model/cnn_pretrained.pth'
-torch.save(model.state_dict(), PATH)
+PATH = 'cnn_pretrained.pth'
+# torch.save(model.state_dict(), PATH)
 
 # Test the model
 # In test phase, we don't need to compute gradients (for memory efficiency)
