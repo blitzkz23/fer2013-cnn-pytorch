@@ -1,3 +1,4 @@
+import io
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -6,6 +7,7 @@ from torchvision import datasets, models, transforms
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+from PIL import Image
 
 # Mengatasi error konflik library
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
@@ -74,7 +76,6 @@ def visualize_model(model, num_images=6):
     with torch.no_grad():
         for i, (inputs, labels) in enumerate(dataloaders['test']):
             inputs = inputs.to(device)
-            labels = labels.to(device)
 
             outputs = model(inputs)
             _, preds = torch.max(outputs, 1)
@@ -83,7 +84,18 @@ def visualize_model(model, num_images=6):
                 images_so_far += 1
                 ax = plt.subplot(num_images//2, 2, images_so_far)
                 ax.axis('off')
-                ax.set_title(f'predicted: {class_names[preds[j]]}')
+
+                if (preds[j] == 0):
+                    label_name = "Stres"
+                elif (preds[j] == 1):
+                    label_name = "Lumayan Stress"
+                elif (preds[j] == 2):
+                    label_name = "Senang"
+                elif (preds[j] == 3):
+                    label_name = "Tidak Stress"
+                elif (preds[j] == 4):
+                    label_name = "Stress"
+                ax.set_title(f'predicted: {label_name}')
                 imshow(inputs.cpu().data[j])
 
                 if images_so_far == num_images:
@@ -94,4 +106,28 @@ def visualize_model(model, num_images=6):
 visualize_model(model)
 plt.ioff()
 plt.show()
+
+# Single prediction
+image_path = "dataset/fer/test/angry/DMUbjq2UjJcG3umGv3Qjjd.jpeg"
+def transform_image(path):
+    transform = transforms.Compose([
+        transforms.Resize((48,48)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean, std)
+    ])
+
+    image = Image.open(path)
+    image = transform(image).float()
+    image = image.unsqueeze(0)
+    return image.cuda()
+
+# predict
+def get_prediction(image_tensor):
+    outputs = model(image_tensor)
+        # max returns (value ,index)
+    _, predicted = torch.max(outputs, 1)
+    return predicted
+# image = transform_image(image_path)
+# prediction = get_prediction(image)
+# print(prediction)
 

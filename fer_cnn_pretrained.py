@@ -38,6 +38,11 @@ data_transforms = {
         transforms.ToTensor(),
         transforms.Normalize(mean, std)
     ]),
+    'test': transforms.Compose([
+        transforms.Resize(48),
+        transforms.ToTensor(),
+        transforms.Normalize(mean, std)
+    ]),
 }
 
 # Load dataset
@@ -153,7 +158,7 @@ optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 step_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=40, gamma=0.1)
 writer.add_graph(model, images.to(device))
 
-model = train_model(model, criterion, optimizer, step_lr_scheduler, num_epochs=60)
+# model = train_model(model, criterion, optimizer, step_lr_scheduler, num_epochs=60)
 
 # for param in model.parameters():
 #     print(param)
